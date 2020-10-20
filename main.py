@@ -10,12 +10,9 @@ class Worker(multiprocessing.Process):
         self.que_out = que_out
 
     def run(self):
-        self.db_connect()
         while True:
             pass
 
-    def db_connect(self):
-        """Подключение к БД."""
 
 
 class Consumer(multiprocessing.Process):
@@ -97,14 +94,56 @@ class Task():
 
 from glob import glob
 import time
+import signal
+
+
+RUN = True
+
+
+def handle(signum, frame):
+    global RUN
+    print("Получен сигнал завершения главного процесса.")
+    RUN = False
+
+
+signal.signal(signal.SIGINT, handle)
 
 if __name__ == "__main__":
+    # настройка очередй и процессов
+    que_results = multiprocessing.Queue() # общая для всех очередь Результатов
+
+    # создаем рабочих с количеством ядер доступных в системе
+    n_workers = multiprocessing.cpu_count()
+
+    print(f'Создание {n_workers} рабочих процессов...')
+
+    workers = list()
+    for i in range(n_workers):
+        que_in = multiprocessing.JoinableQueue()
+        worker = Worker(que_in, que_results)
+
+        workers.append(worker)
+
+    for worker in workers:
+        worker.start()
+
+    # запуск главного цикла
+    print("{:-^50}".format("Мониторинг директории"))
     file_path = r"./test/*"
     files = dict()
 
-    while True:
-        new_files = glob(file_path)
-        print(new_files)
+    while RUN:
+        dir_files = glob(file_path)
+        new_files = []
+        for file in dir_files:
+            if file not in files:
+                new_files.append(file)
+                files[file] = 0
+
+        if new_files:
+            print("Найдено {} файла.".format(len(new_files)))
+            print(*new_files, sep="\n")
+
         time.sleep(5)
 
 
